@@ -1,4 +1,4 @@
-name: Terraform Transit Gateway Module
+name: Terraform AWS SSO Account Associations Module
 #logo: logo/logo.jpg
 
 license: "APACHE2"
@@ -8,23 +8,193 @@ copyrights:
     url: "https://cloudops.works"
     year: "2024"
 
-github_repo: cloudopsworks/terraform-module-aws-vpc-setup
+github_repo: cloudopsworks/terraform-module-aws-sso-account-associations
 
 description: |-
-  VPC Module for setting up transit gateway with ResourceAccessMananger support.
+  The *terraform-module-aws-sso-account-associations* module helps you manage AWS SSO account 
+  associations by assigning permission sets to IAM groups and users across multiple AWS accounts. 
+  It leverages AWS Single Sign-On to ensure that specified users or groups get assigned the relevant 
+  permission sets in the desired AWS accounts. This module significantly simplifies and centralizes the 
+  management of SSO account assignments.
 
 # Introduction to the project
-#introduction: |-
-#  This is an introduction.
+introduction: |-
+  This module is designed to automate the creation and maintenance of AWS SSO (IAM Identity Center) account 
+  assignments for users and groups across different AWS accounts. It supports a flexible, YAML-based input 
+  structure for defining assignments—grouping which users/groups should get which permission sets in which 
+  accounts.
+  <br/>
+  Additionally, you can bootstrap your infrastructure code using Terragrunt and the Gruntwork boilerplate 
+  template included in the .boilerplate folder. By running terragrunt scaffold, you can quickly generate 
+  standardized file structures and configurations for your infrastructure. This encourages best practices 
+  and a clean layout for your Terraform/Terragrunt code.
 
 # How to use this project
-#usage: |-
+usage: |-
+  In your Terragrunt or Terraform configuration, reference the module. For Terragrunt, you might do something like:
+
+  ```hcl
+  terraform {
+    source = “git::https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations.git?ref=develop”
+  }
+
+  inputs = {
+    account_assignments = {
+      # Example of YAML-style definition within Terragrunt:
+      devOpsTeam:
+        accounts:
+          - “111111111111”
+          - “222222222222”
+      groups:
+        - “devops-group”
+      users:
+        - “devops-user@example.com”
+      permission_sets:
+        - “arn:aws:sso:::permissionSet/ps-1234567890abcdef”
+    financeTeam:
+      accounts:
+        - “333333333333”
+      groups:
+        - “finance-group”
+      permission_sets:  
+        - “arn:aws:sso:::permissionSet/ps-fedcba9876543210”
+    }
+  }
+
+  ```
+  - account_assignments: This variable expects a map of keys (e.g., devOpsTeam, financeTeam) where each key is an organizational label. Within each label, you define:
+  - accounts: A list of AWS account IDs.
+  - groups: A list of IAM Identity Center groups to assign.
+  - users: A list of IAM Identity Center users to assign.
+  - permission_sets: A list of permission set ARNs.
 
 # Example usage
-#examples: |-
+examples: |-
+  ### Basic Example
 
+  ```hcl
+
+  module “aws_sso_account_associations” {
+
+  source = “git::https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations.git?ref=develop”
+
+
+
+  account_assignments = {
+
+  exampleRole:
+
+  accounts:
+
+  - “111111111111”
+
+  groups:
+
+  - “admin-group”
+
+  users:
+
+  - “admin-user@example.com”
+
+  permission_sets:
+
+  - “arn:aws:sso:::permissionSet/ps-aaaaaaaaaaaaaaaa”
+
+  }
+
+  }
+
+  ```
+
+
+
+  ### Using Terragrunt Scaffold
+
+  After running terragrunt scaffold, you’ll have a recommended folder structure. In your environment folder, say live/prod/ssomanagement/terragrunt.hcl, you can reference:
+
+  ```hcl
+
+  include {
+
+  path = find_in_parent_folders()
+
+  }
+
+
+
+  terraform {
+
+  source = “git::https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations.git?ref=develop”
+
+  }
+
+
+
+  inputs = {
+
+  account_assignments = yamldecode(file(”${get_parent_terragrunt_dir()}/env-config/sso-assignments.yaml”))
+
+  }
+
+  ```
+
+
+
+  Where sso-assignments.yaml might look like:
+
+  ```yaml
+
+  securityTeam:
+
+  accounts:
+
+  - “444444444444”
+
+  - “555555555555”
+
+  users:
+
+  - “sec-user1@example.com”
+
+  - “sec-user2@example.com”
+
+  permission_sets:
+
+  - “arn:aws:sso:::permissionSet/ps-bbbbbbbbbbbbbbbb”
+
+
+
+  opsTeam:
+
+  accounts:
+
+  - “666666666666”
+
+  groups:
+
+  - “ops-group”
+
+  permission_sets:
+
+  - “arn:aws:sso:::permissionSet/ps-cccccccccccccccc”
+
+  ```
 # How to get started quickly
-#quickstart: |-
+quickstart: |-
+  1. Clone the repository or reference this module in your existing Terragrunt/Terraform configuration.
+  2. Run terragrunt scaffold to initialize a new environment with the Gruntwork boilerplate templates:
+  ```bash
+  terragrunt scaffold
+  ```
+  This command will create a directory structure with recommended best practices.
+  3. Configure the module inputs by editing the generated Terragrunt HCL files (or .auto.tfvars), referencing the variables documented below.
+  4. Review and validate your configuration to ensure all accounts, users, groups, and permission sets are correctly defined.
+  5. Deploy the module using:
+
+  ```bash
+  terragrunt run-all apply
+  ```
+  This will create or update your AWS SSO account assignments.
 
 include:
   - "docs/targets.md"
