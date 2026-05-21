@@ -3,13 +3,13 @@
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.4 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.35 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.4 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.35 |
 
 ## Modules
 
@@ -34,9 +34,9 @@
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_account_arn"></a> [account\_arn](#input\_account\_arn) | The AWS account ARN for the SSO instance | `string` | n/a | yes |
-| <a name="input_account_id"></a> [account\_id](#input\_account\_id) | The AWS account ID for the SSO instance | `string` | n/a | yes |
-| <a name="input_associations"></a> [associations](#input\_associations) | List of permission set associations to create in the identity store | `any` | `[]` | no |
+| <a name="input_account_arn"></a> [account\_arn](#input\_account\_arn) | AWS account ARN for the SSO target account (Required) | `string` | n/a | yes |
+| <a name="input_account_id"></a> [account\_id](#input\_account\_id) | AWS account ID for the SSO target account (Required) | `string` | n/a | yes |
+| <a name="input_associations"></a> [associations](#input\_associations) | List of SSO account assignment objects; each entry requires permission\_set and exactly one of group\_name or user\_name (Optional, default: []) | `any` | `[]` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
 | <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
 | <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
@@ -44,4 +44,8 @@
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_group_assignment_ids"></a> [group\_assignment\_ids](#output\_group\_assignment\_ids) | Map of group SSO account assignment resource IDs, keyed by 'permission\_set-group\_name' |
+| <a name="output_sso_instance_arn"></a> [sso\_instance\_arn](#output\_sso\_instance\_arn) | ARN of the AWS SSO instance used for account assignments |
+| <a name="output_user_assignment_ids"></a> [user\_assignment\_ids](#output\_user\_assignment\_ids) | Map of user SSO account assignment resource IDs, keyed by 'permission\_set-user\_name' |
