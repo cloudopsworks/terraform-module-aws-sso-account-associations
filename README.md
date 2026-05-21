@@ -12,14 +12,13 @@
 
 # Terraform AWS SSO Account Associations Module
 
+ [![Latest Release](https://img.shields.io/github/release/cloudopsworks/terraform-module-aws-sso-account-associations.svg?style=for-the-badge)](https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations/releases/latest) [![Last Updated](https://img.shields.io/github/last-commit/cloudopsworks/terraform-module-aws-sso-account-associations.svg?style=for-the-badge)](https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations/commits)
 
 
-
-The *terraform-module-aws-sso-account-associations* module helps you manage AWS SSO account 
-associations by assigning permission sets to IAM groups and users across multiple AWS accounts. 
-It leverages AWS Single Sign-On to ensure that specified users or groups get assigned the relevant 
-permission sets in the desired AWS accounts. This module significantly simplifies and centralizes the 
-management of SSO account assignments.
+The *terraform-module-aws-sso-account-associations* module manages AWS SSO (IAM Identity Center)
+account assignments, assigning permission sets to identity store groups and users within a target
+AWS account. It uses the AWS SSO Admin API to create and maintain account-level principal assignments
+in a declarative, YAML-friendly format, with automatic discovery of the SSO instance and identity store.
 
 
 ---
@@ -49,15 +48,18 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 
 ## Introduction
 
-This module is designed to automate the creation and maintenance of AWS SSO (IAM Identity Center) account 
-assignments for users and groups across different AWS accounts. It supports a flexible, YAML-based input 
-structure for defining assignments—grouping which users/groups should get which permission sets in which 
-accounts.
-<br/>
-Additionally, you can bootstrap your infrastructure code using Terragrunt and the Gruntwork boilerplate 
-template included in the .boilerplate folder. By running terragrunt scaffold, you can quickly generate 
-standardized file structures and configurations for your infrastructure. This encourages best practices 
-and a clean layout for your Terraform/Terragrunt code.
+This module automates the creation and maintenance of AWS SSO (IAM Identity Center) account
+assignments for both identity store groups and individual users. Assignments are defined as a list
+of objects—each specifying a permission set name and either a group display name (`group_name`)
+or a username (`user_name`).
+
+The module automatically discovers the SSO instance ARN and Identity Store ID, then resolves the
+appropriate group or user principal IDs and permission set ARNs before creating the assignments.
+Both group-based and user-based assignments can coexist in the same deployment.
+
+Infrastructure code is bootstrapped with Terragrunt scaffolding from the `.boilerplate` folder,
+generating standardized `terragrunt.hcl`, `inputs.yaml`, and tag files. When integrated with the
+CloudOps Works org dependency module, the target account ID and ARN are sourced automatically.
 
 ## Usage
 
@@ -66,171 +68,155 @@ and a clean layout for your Terraform/Terragrunt code.
 Instead pin to the release tag (e.g. `?ref=vX.Y.Z`) of one of our [latest releases](https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations/releases).
 
 
-In your Terragrunt or Terraform configuration, reference the module. For Terragrunt, you might do something like:
+## Scaffolding a New Deployment
+
+Use Terragrunt scaffold to initialize a new deployment directory:
+
+```sh
+# 1. Create and enter the target deployment directory
+mkdir -p <environment>/<region>/<spoke>/sso-account-associations
+cd <environment>/<region>/<spoke>/sso-account-associations
+
+# 2. Scaffold the module (creates terragrunt.hcl, inputs.yaml, local-tags.json)
+terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-sso-account-associations
+
+# 3. Edit inputs.yaml with deployment-specific values
+vi inputs.yaml
+
+# 4. Apply
+terragrunt apply
+```
+
+## Generated `inputs.yaml`
+
+```yaml
+# associations:                              # (Optional) List of SSO permission set associations. Default: []
+# Each entry must specify permission_set and exactly one of group_name or user_name.
+#   - permission_set: "AdministratorAccess"  # (Required) Name of the AWS SSO permission set
+#     group_name: "Admins"                   # (Optional) Identity store group display name; mutually exclusive with user_name
+#   - permission_set: "ReadOnlyAccess"       # (Required) Name of the AWS SSO permission set
+#     user_name: "john.doe@example.com"      # (Optional) Identity store username; mutually exclusive with group_name
+associations:
+  - permission_set: "AdministratorAccess"
+    group_name: "CloudAdmins"
+
+# account_id: "123456789012"
+# (Required when org_module_enabled=false) AWS account ID for the SSO target account.
+# When org_module_enabled=true (default), sourced automatically from dependency.org.outputs.account_id.
+
+# account_arn: "arn:aws:organizations::123456789012:account/o-exampleorgid/123456789012"
+# (Required when org_module_enabled=false) AWS account ARN for the SSO target account.
+# When org_module_enabled=true (default), sourced automatically from dependency.org.outputs.account_arn.
+```
+
+## Generated `terragrunt.hcl`
 
 ```hcl
-terraform {
-  source = “git::https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations.git?ref=develop”
+locals {
+  local_vars  = yamldecode(file("./inputs.yaml"))
+  spoke_vars  = yamldecode(file(find_in_parent_folders("spoke-inputs.yaml")))
+  region_vars = yamldecode(file(find_in_parent_folders("region-inputs.yaml")))
+  env_vars    = yamldecode(file(find_in_parent_folders("env-inputs.yaml")))
+  global_vars = yamldecode(file(find_in_parent_folders("global-inputs.yaml")))
+
+  local_tags  = jsondecode(file("./local-tags.json"))
+  spoke_tags  = jsondecode(file(find_in_parent_folders("spoke-tags.json")))
+  region_tags = jsondecode(file(find_in_parent_folders("region-tags.json")))
+  env_tags    = jsondecode(file(find_in_parent_folders("env-tags.json")))
+  global_tags = jsondecode(file(find_in_parent_folders("global-tags.json")))
+
+  tags = merge(
+    local.global_tags,
+    local.env_tags,
+    local.region_tags,
+    local.spoke_tags,
+    local.local_tags
+  )
 }
 
-inputs = {
-  account_assignments = {
-    # Example of YAML-style definition within Terragrunt:
-    devOpsTeam:
-      accounts:
-        - “111111111111”
-        - “222222222222”
-    groups:
-      - “devops-group”
-    users:
-      - “devops-user@example.com”
-    permission_sets:
-      - “arn:aws:sso:::permissionSet/ps-1234567890abcdef”
-  financeTeam:
-    accounts:
-      - “333333333333”
-    groups:
-      - “finance-group”
-    permission_sets:  
-      - “arn:aws:sso:::permissionSet/ps-fedcba9876543210”
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+dependency "org" {
+  config_path = "../org"
+  mock_outputs_allowed_terraform_commands = ["validate", "destroy"]
+  mock_outputs = {
+    account_id   = "123456789012"
+    account_arn  = "arn:aws:organizations::123456789012:account/o-123456789012/a-123456789012"
+    account_name = "account-name"
   }
 }
 
+terraform {
+  source = "github.com/cloudopsworks/terraform-module-aws-sso-account-associations"
+}
+
+inputs = {
+  is_hub       = false
+  org          = local.env_vars.org
+  spoke_def    = local.spoke_vars.spoke
+  account_id   = dependency.org.outputs.account_id
+  account_arn  = dependency.org.outputs.account_arn
+  associations = try(local.local_vars.associations, [])
+  extra_tags   = local.tags
+}
 ```
-- account_assignments: This variable expects a map of keys (e.g., devOpsTeam, financeTeam) where each key is an organizational label. Within each label, you define:
-- accounts: A list of AWS account IDs.
-- groups: A list of IAM Identity Center groups to assign.
-- users: A list of IAM Identity Center users to assign.
-- permission_sets: A list of permission set ARNs.
 
 ## Quick Start
 
-1. Clone the repository or reference this module in your existing Terragrunt/Terraform configuration.
-2. Run terragrunt scaffold to initialize a new environment with the Gruntwork boilerplate templates:
-```bash
-terragrunt scaffold
-```
-This command will create a directory structure with recommended best practices.
-3. Configure the module inputs by editing the generated Terragrunt HCL files (or .auto.tfvars), referencing the variables documented below.
-4. Review and validate your configuration to ensure all accounts, users, groups, and permission sets are correctly defined.
-5. Deploy the module using:
-
-```bash
-terragrunt run-all apply
-```
-This will create or update your AWS SSO account assignments.
+1. Create and enter the target deployment directory:
+   ```bash
+   mkdir -p prod/us-east-1/001/sso-account-associations
+   cd prod/us-east-1/001/sso-account-associations
+   ```
+2. Scaffold the module:
+   ```bash
+   terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-sso-account-associations
+   ```
+3. Edit `inputs.yaml` and define your SSO associations list.
+4. Validate the configuration:
+   ```bash
+   terragrunt validate
+   ```
+5. Apply:
+   ```bash
+   terragrunt apply
+   ```
 
 
 ## Examples
 
-### Basic Example
+### Group and User Mix
 
-```hcl
-
-module “aws_sso_account_associations” {
-
-source = “git::https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations.git?ref=develop”
-
-
-
-account_assignments = {
-
-exampleRole:
-
-accounts:
-
-- “111111111111”
-
-groups:
-
-- “admin-group”
-
-users:
-
-- “admin-user@example.com”
-
-permission_sets:
-
-- “arn:aws:sso:::permissionSet/ps-aaaaaaaaaaaaaaaa”
-
-}
-
-}
-
-```
-
-
-
-### Using Terragrunt Scaffold
-
-After running terragrunt scaffold, you’ll have a recommended folder structure. In your environment folder, say live/prod/ssomanagement/terragrunt.hcl, you can reference:
-
-```hcl
-
-include {
-
-path = find_in_parent_folders()
-
-}
-
-
-
-terraform {
-
-source = “git::https://github.com/cloudopsworks/terraform-module-aws-sso-account-associations.git?ref=develop”
-
-}
-
-
-
-inputs = {
-
-account_assignments = yamldecode(file(”${get_parent_terragrunt_dir()}/env-config/sso-assignments.yaml”))
-
-}
-
-```
-
-
-
-Where sso-assignments.yaml might look like:
+Assign multiple permission sets to both groups and individual users in the same account:
 
 ```yaml
+associations:
+  - permission_set: "AdministratorAccess"
+    group_name: "CloudAdmins"
+  - permission_set: "PowerUserAccess"
+    group_name: "Developers"
+  - permission_set: "ReadOnlyAccess"
+    user_name: "auditor@example.com"
+  - permission_set: "SecurityAudit"
+    user_name: "sec-analyst@example.com"
+```
 
-securityTeam:
+### Standalone Deployment (without org dependency)
 
-accounts:
+When deploying without the org dependency module (`org_module_enabled=false`),
+supply the account details directly in `inputs.yaml`:
 
-- “444444444444”
+```yaml
+associations:
+  - permission_set: "AdministratorAccess"
+    group_name: "CloudAdmins"
+  - permission_set: "ReadOnlyAccess"
+    user_name: "auditor@example.com"
 
-- “555555555555”
-
-users:
-
-- “sec-user1@example.com”
-
-- “sec-user2@example.com”
-
-permission_sets:
-
-- “arn:aws:sso:::permissionSet/ps-bbbbbbbbbbbbbbbb”
-
-
-
-opsTeam:
-
-accounts:
-
-- “666666666666”
-
-groups:
-
-- “ops-group”
-
-permission_sets:
-
-- “arn:aws:sso:::permissionSet/ps-cccccccccccccccc”
-
+account_id: "123456789012"
+account_arn: "arn:aws:organizations::123456789012:account/o-exampleorgid/123456789012"
 ```
 
 
@@ -252,13 +238,13 @@ Available targets:
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.4 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.35 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.4 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.46.0 |
 
 ## Modules
 
@@ -283,9 +269,9 @@ Available targets:
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_account_arn"></a> [account\_arn](#input\_account\_arn) | The AWS account ARN for the SSO instance | `string` | n/a | yes |
-| <a name="input_account_id"></a> [account\_id](#input\_account\_id) | The AWS account ID for the SSO instance | `string` | n/a | yes |
-| <a name="input_associations"></a> [associations](#input\_associations) | List of permission set associations to create in the identity store | `any` | `[]` | no |
+| <a name="input_account_arn"></a> [account\_arn](#input\_account\_arn) | AWS account ARN for the SSO target account (Required) | `string` | n/a | yes |
+| <a name="input_account_id"></a> [account\_id](#input\_account\_id) | AWS account ID for the SSO target account (Required) | `string` | n/a | yes |
+| <a name="input_associations"></a> [associations](#input\_associations) | List of SSO account assignment objects; each entry requires permission\_set and exactly one of group\_name or user\_name (Optional, default: []) | `any` | `[]` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
 | <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
 | <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
@@ -293,7 +279,11 @@ Available targets:
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_group_assignment_ids"></a> [group\_assignment\_ids](#output\_group\_assignment\_ids) | Map of group SSO account assignment resource IDs, keyed by 'permission\_set-group\_name' |
+| <a name="output_sso_instance_arn"></a> [sso\_instance\_arn](#output\_sso\_instance\_arn) | ARN of the AWS SSO instance used for account assignments |
+| <a name="output_user_assignment_ids"></a> [user\_assignment\_ids](#output\_user\_assignment\_ids) | Map of user SSO account assignment resource IDs, keyed by 'permission\_set-user\_name' |
 
 
 

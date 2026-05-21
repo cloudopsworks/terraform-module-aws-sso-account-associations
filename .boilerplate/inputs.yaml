@@ -1,1 +1,17 @@
 # Module configuration
+
+# associations:                              # (Optional) List of SSO permission set associations. Default: []
+# Each entry must specify permission_set and exactly one of group_name or user_name.
+#   - permission_set: "AdministratorAccess"  # (Required) Name of the AWS SSO permission set
+#     group_name: "Admins"                   # (Optional) Identity store group display name; mutually exclusive with user_name
+#   - permission_set: "ReadOnlyAccess"       # (Required) Name of the AWS SSO permission set
+#     user_name: "john.doe@example.com"      # (Optional) Identity store username; mutually exclusive with group_name
+associations: []
+
+# account_id: "123456789012"
+# (Required when org_module_enabled=false) AWS account ID for the SSO target account.
+# When org_module_enabled=true (default), sourced automatically from dependency.org.outputs.account_id.
+
+# account_arn: "arn:aws:organizations::123456789012:account/o-exampleorgid/123456789012"
+# (Required when org_module_enabled=false) AWS account ARN for the SSO target account.
+# When org_module_enabled=true (default), sourced automatically from dependency.org.outputs.account_arn.
