@@ -14,22 +14,26 @@ variables:
     description: "Is this a hub configuration?"
     type: bool
     default: false
+    confirm: true
   - name: tags
     order: 1
     description: "Tags"
     type: map
     default: {}
+    confirm: true
   # End - Generic Boilerplate Variables Setup
   - name: org_module_enabled
     order: 2
     description: "Is the organization dependency module enabled?"
     type: bool
     default: true
+    confirm: true
   - name: org_path
     order: 3
     description: "Path to the organization dependency module"
     type: string
     default: "../org"
+    confirm: true
 
 hooks:
   after:
